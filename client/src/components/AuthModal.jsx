@@ -17,9 +17,9 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     setLoading(true);
     setError('');
 
-    const endpoint = isLogin
-      ? 'http://localhost:5000/api/auth/login'
-      : 'http://localhost:5000/api/auth/register';
+   const endpoint = isLogin
+    ? 'https://pricehunter-api-ox2s.onrender.com/api/auth/login'
+    : 'https://pricehunter-api-ox2s.onrender.com/api/auth/register';
 
     const payload = isLogin ? { email, password } : { name, email, password };
 

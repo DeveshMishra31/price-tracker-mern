@@ -96,7 +96,7 @@ function App() {
     setError('');
 
     try {
-      const response = await axios.post('http://localhost:5000/api/products/search', { query: searchQuery });
+      const response = await axios.post(`https://pricehunter-api-ox2s.onrender.com`, { query: searchQuery });
       setResults(response.data);
 
       if (!user) {
