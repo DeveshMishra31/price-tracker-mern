@@ -96,9 +96,10 @@ const handleSearch = async (e, directQuery = null) => {
     setError('');
 
     try {
-      // FIX: Full endpoint aur GET request with query param (?q=)
-      const response = await axios.get(
-        `https://pricehunter-api-ox2s.onrender.com/api/products/search?q=${encodeURIComponent(searchQuery)}`
+      // Backend POST expect karta hai body payload { query: ... } ke sath
+      const response = await axios.post(
+        'https://pricehunter-api-ox2s.onrender.com/api/products/search',
+        { query: searchQuery }
       );
       setResults(response.data);
 
