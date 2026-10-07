@@ -9,11 +9,18 @@ const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'pricehunter_jwt_secret_key_123';
 
 // Email Transporter Config
+// Email Transporter Config (IPv4 forced on Port 587)
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false, // port 587 ke sath false rehta hai
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
+  },
+  family: 4, // Force IPv4 (ye ENETUNREACH IPv6 issue ko fix karta hai)
+  tls: {
+    rejectUnauthorized: false,
   },
 });
 
