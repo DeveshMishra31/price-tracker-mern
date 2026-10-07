@@ -1,35 +1,15 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import nodemailer from 'nodemailer';
-import dns from 'dns';
+import { Resend } from 'resend';
 import User from '../models/User.js';
 import Otp from '../models/Otp.js';
-
-// Node runtime ko direct force karein IPv4 ke liye
-if (dns.setDefaultResultOrder) {
-  dns.setDefaultResultOrder('ipv4first');
-}
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'pricehunter_jwt_secret_key_123';
 
-// Email Transporter Config
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-  connectionTimeout: 10000, // 10s timeout
-  greetingTimeout: 10000,
-  socketTimeout: 15000,
-  tls: {
-    rejectUnauthorized: false,
-  },
-});
+// Initialize Resend HTTP client
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // --- 1. SEND OTP ROUTE ---
 router.post('/send-otp', async (req, res) => {
@@ -53,23 +33,31 @@ router.post('/send-otp', async (req, res) => {
     await Otp.deleteMany({ email });
     await Otp.create({ email, otp });
 
-    console.log('Attempting to send email via nodemailer...');
+    console.log('Attempting to send email via Resend API...');
 
-    await transporter.sendMail({
-      from: `"PriceHunter" <${process.env.EMAIL_USER}>`,
-      to: email,
+    const { data, error } = await resend.emails.send({
+      from: 'PriceHunter <onboarding@resend.dev>',
+      to: [email],
       subject: 'PriceHunter - Your Verification Code',
       html: `
-        <div style="font-family: Arial, sans-serif; padding: 20px;">
-          <h2>PriceHunter Verification Code</h2>
-          <p>Your OTP is: <strong>${otp}</strong></p>
-          <p>Valid for 5 minutes.</p>
+        <div style="font-family: Arial, sans-serif; max-width: 480px; margin: auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px;">
+          <h2 style="color: #2563eb; margin-bottom: 8px;">PriceHunter</h2>
+          <p style="color: #475569; font-size: 14px;">Your verification code for registration is:</p>
+          <div style="background-color: #f1f5f9; padding: 16px; text-align: center; font-size: 28px; font-weight: bold; letter-spacing: 6px; color: #1e293b; border-radius: 8px; margin: 20px 0;">
+            ${otp}
+          </div>
+          <p style="color: #94a3b8; font-size: 12px;">This code will expire in 5 minutes.</p>
         </div>
       `,
     });
 
-    console.log('Email sent successfully!');
-    res.status(200).json({ message: 'OTP sent successfully' });
+    if (error) {
+      console.error('Resend error:', error);
+      return res.status(500).json({ message: error.message || 'Failed to send OTP' });
+    }
+
+    console.log('Email sent successfully via Resend!', data);
+    res.status(200).json({ message: 'OTP sent successfully to your email' });
   } catch (error) {
     console.error('--- DETAILED SEND OTP ERROR ---', error);
     res.status(500).json({ message: error.message || 'Failed to send OTP' });
