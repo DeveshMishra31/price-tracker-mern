@@ -1,17 +1,31 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { Resend } from 'resend';
+import Brevo from '@getbrevo/brevo';
 import User from '../models/User.js';
 import Otp from '../models/Otp.js';
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'pricehunter_jwt_secret_key_123';
 
-// Initialize Resend HTTP client
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Brevo API Client Setup
+const apiInstance = new Brevo.TransactionalEmailsApi();
+apiInstance.setApiKey(
+  Brevo.TransactionalEmailsApiApiKeys.apiKey,
+  process.env.BREVO_API_KEY
+);
 
-// --- 1. SEND OTP ROUTE ---
+// Email bhejne ke liye common helper function
+const sendEmail = async (toEmail, subject, htmlContent) => {
+  const sendSmtpEmail = new Brevo.SendSmtpEmail();
+  sendSmtpEmail.subject = subject;
+  sendSmtpEmail.htmlContent = htmlContent;
+  sendSmtpEmail.sender = { name: 'PriceHunter', email: 'deveshmishradeveshmishra8@gmail.com' };
+  sendSmtpEmail.to = [{ email: toEmail }];
+  return apiInstance.sendTransacEmail(sendSmtpEmail);
+};
+
+// --- 1. SEND OTP ROUTE (REGISTRATION) ---
 router.post('/send-otp', async (req, res) => {
   console.log('--- Incoming /send-otp request ---');
   console.log('Email received:', req.body.email);
@@ -33,13 +47,12 @@ router.post('/send-otp', async (req, res) => {
     await Otp.deleteMany({ email });
     await Otp.create({ email, otp });
 
-    console.log('Attempting to send email via Resend API...');
+    console.log('Attempting to send email via Brevo API...');
 
-    const { data, error } = await resend.emails.send({
-      from: 'PriceHunter <onboarding@resend.dev>',
-      to: [email],
-      subject: 'PriceHunter - Your Verification Code',
-      html: `
+    await sendEmail(
+      email,
+      'PriceHunter - Your Verification Code',
+      `
         <div style="font-family: Arial, sans-serif; max-width: 480px; margin: auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px;">
           <h2 style="color: #2563eb; margin-bottom: 8px;">PriceHunter</h2>
           <p style="color: #475569; font-size: 14px;">Your verification code for registration is:</p>
@@ -48,19 +61,14 @@ router.post('/send-otp', async (req, res) => {
           </div>
           <p style="color: #94a3b8; font-size: 12px;">This code will expire in 5 minutes.</p>
         </div>
-      `,
-    });
+      `
+    );
 
-    if (error) {
-      console.error('Resend error:', error);
-      return res.status(500).json({ message: error.message || 'Failed to send OTP' });
-    }
-
-    console.log('Email sent successfully via Resend!', data);
+    console.log('Email sent successfully via Brevo!');
     res.status(200).json({ message: 'OTP sent successfully to your email' });
   } catch (error) {
-    console.error('--- DETAILED SEND OTP ERROR ---', error);
-    res.status(500).json({ message: error.message || 'Failed to send OTP' });
+    console.error('--- DETAILED BREVO SEND OTP ERROR ---', error);
+    res.status(500).json({ message: 'Failed to send OTP' });
   }
 });
 
@@ -141,6 +149,68 @@ router.post('/login', async (req, res) => {
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ message: 'Server error during login' });
+  }
+});
+
+// --- 4. FORGOT PASSWORD (SEND RESET OTP) ---
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: 'No account found with this email' });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    await Otp.deleteMany({ email });
+    await Otp.create({ email, otp });
+
+    await sendEmail(
+      email,
+      'PriceHunter - Reset Password OTP',
+      `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+          <h2>Password Reset Request</h2>
+          <p>Your password reset code is: <strong>${otp}</strong></p>
+          <p>Valid for 5 minutes.</p>
+        </div>
+      `
+    );
+
+    res.status(200).json({ message: 'Reset OTP sent successfully' });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ message: 'Failed to send reset code' });
+  }
+});
+
+// --- 5. RESET PASSWORD WITH OTP ---
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    const otpRecord = await Otp.findOne({ email, otp });
+    if (!otpRecord) {
+      return res.status(400).json({ message: 'Invalid or expired OTP' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    await User.findOneAndUpdate({ email }, { password: hashedPassword });
+    await Otp.deleteMany({ email });
+
+    res.status(200).json({ message: 'Password reset successful. Please login with your new password.' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ message: 'Server error while resetting password' });
   }
 });
 
