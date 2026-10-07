@@ -6,10 +6,15 @@ import dns from 'dns';
 import User from '../models/User.js';
 import Otp from '../models/Otp.js';
 
+// Node runtime ko direct force karein IPv4 ke liye
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first');
+}
+
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'pricehunter_jwt_secret_key_123';
 
-// Email Transporter Config - Force IPv4 via DNS lookup
+// Email Transporter Config
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 587,
@@ -18,12 +23,11 @@ const transporter = nodemailer.createTransport({
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
+  connectionTimeout: 10000, // 10s timeout
+  greetingTimeout: 10000,
+  socketTimeout: 15000,
   tls: {
     rejectUnauthorized: false,
-  },
-  lookup: (hostname, options, callback) => {
-    // Ye direct IPv4 resolve karega, IPv6 connection block bypass ho jayega
-    dns.lookup(hostname, { family: 4 }, callback);
   },
 });
 
