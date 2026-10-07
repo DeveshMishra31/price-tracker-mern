@@ -2,25 +2,28 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import nodemailer from 'nodemailer';
+import dns from 'dns';
 import User from '../models/User.js';
 import Otp from '../models/Otp.js';
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'pricehunter_jwt_secret_key_123';
 
-// Email Transporter Config
-// Email Transporter Config (IPv4 forced on Port 587)
+// Email Transporter Config - Force IPv4 via DNS lookup
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 587,
-  secure: false, // port 587 ke sath false rehta hai
+  secure: false,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
-  family: 4, // Force IPv4 (ye ENETUNREACH IPv6 issue ko fix karta hai)
   tls: {
     rejectUnauthorized: false,
+  },
+  lookup: (hostname, options, callback) => {
+    // Ye direct IPv4 resolve karega, IPv6 connection block bypass ho jayega
+    dns.lookup(hostname, { family: 4 }, callback);
   },
 });
 
@@ -28,8 +31,6 @@ const transporter = nodemailer.createTransport({
 router.post('/send-otp', async (req, res) => {
   console.log('--- Incoming /send-otp request ---');
   console.log('Email received:', req.body.email);
-  console.log('EMAIL_USER configured:', process.env.EMAIL_USER ? 'YES' : 'NO');
-  console.log('EMAIL_PASS configured:', process.env.EMAIL_PASS ? 'YES' : 'NO');
 
   try {
     const { email } = req.body;
@@ -80,27 +81,22 @@ router.post('/verify-otp-register', async (req, res) => {
       return res.status(400).json({ message: 'All fields including OTP are required' });
     }
 
-    // Check OTP validity
     const otpRecord = await Otp.findOne({ email, otp });
     if (!otpRecord) {
       return res.status(400).json({ message: 'Invalid or expired OTP' });
     }
 
-    // Password encryption using bcryptjs
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Save user to database
     const newUser = await User.create({
       name,
       email,
       password: hashedPassword,
     });
 
-    // Delete used OTP
     await Otp.deleteMany({ email });
 
-    // JWT token generation
     const token = jwt.sign(
       { id: newUser._id, email: newUser.email },
       JWT_SECRET,
