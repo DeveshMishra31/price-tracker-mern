@@ -1,28 +1,33 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import * as Brevo from '@getbrevo/brevo';
+import axios from 'axios';
 import User from '../models/User.js';
 import Otp from '../models/Otp.js';
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'pricehunter_jwt_secret_key_123';
 
-// Brevo API Client Setup
-const apiInstance = new Brevo.TransactionalEmailsApi();
-apiInstance.setApiKey(
-  Brevo.TransactionalEmailsApiApiKeys.apiKey,
-  process.env.BREVO_API_KEY
-);
-
-// Email bhejne ke liye common helper function
+// Direct Brevo REST API helper (Zero SDK import issues)
 const sendEmail = async (toEmail, subject, htmlContent) => {
-  const sendSmtpEmail = new Brevo.SendSmtpEmail();
-  sendSmtpEmail.subject = subject;
-  sendSmtpEmail.htmlContent = htmlContent;
-  sendSmtpEmail.sender = { name: 'PriceHunter', email: 'deveshmishradeveshmishra8@gmail.com' };
-  sendSmtpEmail.to = [{ email: toEmail }];
-  return apiInstance.sendTransacEmail(sendSmtpEmail);
+  return axios.post(
+    'https://api.brevo.com/v3/smtp/email',
+    {
+      sender: {
+        name: 'PriceHunter',
+        email: 'deveshmishradeveshmishra8@gmail.com',
+      },
+      to: [{ email: toEmail }],
+      subject: subject,
+      htmlContent: htmlContent,
+    },
+    {
+      headers: {
+        'api-key': process.env.BREVO_API_KEY,
+        'Content-Type': 'application/json',
+      },
+    }
+  );
 };
 
 // --- 1. SEND OTP ROUTE (REGISTRATION) ---
@@ -47,7 +52,7 @@ router.post('/send-otp', async (req, res) => {
     await Otp.deleteMany({ email });
     await Otp.create({ email, otp });
 
-    console.log('Attempting to send email via Brevo API...');
+    console.log('Attempting to send email via Brevo REST API...');
 
     await sendEmail(
       email,
@@ -64,11 +69,11 @@ router.post('/send-otp', async (req, res) => {
       `
     );
 
-    console.log('Email sent successfully via Brevo!');
+    console.log('Email sent successfully via Brevo REST API!');
     res.status(200).json({ message: 'OTP sent successfully to your email' });
   } catch (error) {
-    console.error('--- DETAILED BREVO SEND OTP ERROR ---', error);
-    res.status(500).json({ message: 'Failed to send OTP' });
+    console.error('--- DETAILED BREVO SEND OTP ERROR ---', error.response?.data || error.message);
+    res.status(500).json({ message: error.response?.data?.message || 'Failed to send OTP' });
   }
 });
 
@@ -183,7 +188,7 @@ router.post('/forgot-password', async (req, res) => {
 
     res.status(200).json({ message: 'Reset OTP sent successfully' });
   } catch (error) {
-    console.error('Forgot password error:', error);
+    console.error('Forgot password error:', error.response?.data || error.message);
     res.status(500).json({ message: 'Failed to send reset code' });
   }
 });
