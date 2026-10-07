@@ -81,7 +81,7 @@ function App() {
     document.documentElement.classList.toggle('dark');
   };
 
- const handleSearch = async (e, directQuery = null) => {
+const handleSearch = async (e, directQuery = null) => {
     if (e) e.preventDefault();
     const searchQuery = directQuery || query;
     if (!searchQuery.trim()) return;
@@ -96,14 +96,17 @@ function App() {
     setError('');
 
     try {
-      const response = await axios.post(`https://pricehunter-api-ox2s.onrender.com`, { query: searchQuery });
+      // FIX: Full endpoint aur GET request with query param (?q=)
+      const response = await axios.get(
+        `https://pricehunter-api-ox2s.onrender.com/api/products/search?q=${encodeURIComponent(searchQuery)}`
+      );
       setResults(response.data);
 
       if (!user) {
         localStorage.setItem('guest_has_searched', 'true');
       }
 
-      // Enter press ya search hone ke baad automatically smooth scroll karega
+      // Smooth scroll to results
       setTimeout(() => {
         const resultsElement = document.getElementById('search-results-section');
         if (resultsElement) {
