@@ -19,6 +19,11 @@ const transporter = nodemailer.createTransport({
 
 // --- 1. SEND OTP ROUTE ---
 router.post('/send-otp', async (req, res) => {
+  console.log('--- Incoming /send-otp request ---');
+  console.log('Email received:', req.body.email);
+  console.log('EMAIL_USER configured:', process.env.EMAIL_USER ? 'YES' : 'NO');
+  console.log('EMAIL_PASS configured:', process.env.EMAIL_PASS ? 'YES' : 'NO');
+
   try {
     const { email } = req.body;
 
@@ -26,42 +31,36 @@ router.post('/send-otp', async (req, res) => {
       return res.status(400).json({ message: 'Email is required' });
     }
 
-    // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: 'User already exists with this email' });
     }
 
-    // Generate random 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Pehle ka koi purana OTP ho to delete karein
     await Otp.deleteMany({ email });
-
-    // Save new OTP
     await Otp.create({ email, otp });
 
-    // Send Mail
+    console.log('Attempting to send email via nodemailer...');
+
     await transporter.sendMail({
       from: `"PriceHunter" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: 'PriceHunter - Your Verification Code',
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 480px; margin: auto; padding: 24px; border: 1px solid #e2e8f0; rounded: 16px;">
-          <h2 style="color: #2563eb; margin-bottom: 8px;">PriceHunter</h2>
-          <p style="color: #475569; font-size: 14px;">Your verification code for registration is:</p>
-          <div style="background-color: #f1f5f9; padding: 16px; text-align: center; font-size: 28px; font-weight: bold; letter-spacing: 6px; color: #1e293b; border-radius: 8px; margin: 20px 0;">
-            ${otp}
-          </div>
-          <p style="color: #94a3b8; font-size: 12px;">This code will expire in 5 minutes. If you did not request this, please ignore this email.</p>
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+          <h2>PriceHunter Verification Code</h2>
+          <p>Your OTP is: <strong>${otp}</strong></p>
+          <p>Valid for 5 minutes.</p>
         </div>
       `,
     });
 
-    res.status(200).json({ message: 'OTP sent successfully to your email' });
+    console.log('Email sent successfully!');
+    res.status(200).json({ message: 'OTP sent successfully' });
   } catch (error) {
-    console.error('Send OTP error:', error);
-    res.status(500).json({ message: 'Failed to send OTP email. Please verify email credentials.' });
+    console.error('--- DETAILED SEND OTP ERROR ---', error);
+    res.status(500).json({ message: error.message || 'Failed to send OTP' });
   }
 });
 
