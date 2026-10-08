@@ -13,7 +13,8 @@ import {
   ShieldCheck, 
   Layers, 
   ArrowRight, 
-  TrendingDown 
+  TrendingDown,
+  Loader2
 } from 'lucide-react';
 import AuthModal from './components/AuthModal';
 
@@ -23,7 +24,15 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
   const [error, setError] = useState('');
-  
+
+  // Dynamic Live Step State for Radar Pill
+  const [loadingStep, setLoadingStep] = useState(0);
+  const loadingSteps = [
+    'Connecting to Amazon, Flipkart & Croma live index...',
+    'Extracting verified merchant prices & delivery timelines...',
+    'Running category filters & finding the lowest deal...'
+  ];
+
   // 1. History State (localStorage se load karega)
   const [searchHistory, setSearchHistory] = useState(() => {
     try {
@@ -34,6 +43,18 @@ function App() {
     }
   });
   const [showDropdown, setShowDropdown] = useState(false);
+
+  // Dynamic Step Timer
+  useEffect(() => {
+    let interval;
+    if (loading) {
+      setLoadingStep(0);
+      interval = setInterval(() => {
+        setLoadingStep((prev) => (prev < loadingSteps.length - 1 ? prev + 1 : prev));
+      }, 1400);
+    }
+    return () => clearInterval(interval);
+  }, [loading]);
 
   // 2. Nayi Search ko History mein Save karne ka helper
   const saveQueryToHistory = (queryText) => {
@@ -106,7 +127,6 @@ function App() {
         localStorage.setItem('guest_has_searched', 'true');
       }
 
-      // Smooth scroll to results
       setTimeout(() => {
         const resultsElement = document.getElementById('search-results-section');
         if (resultsElement) {
@@ -133,7 +153,6 @@ function App() {
       {/* 1. Header / Navbar */}
       <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          
           <div className="flex items-center space-x-2">
             <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-md shadow-blue-500/20">
               ₹
@@ -181,8 +200,6 @@ function App() {
         style={{ minHeight: '580px' }}
         className="relative pt-12 pb-16 px-4 sm:px-6 flex flex-col items-center justify-center text-center z-30"
       >
-
-        {/* --- 3D Globe Background Canvas (overflow-hidden sirf globe canvas wrapper par) --- */}
         <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none select-none overflow-hidden">
           <div 
             style={{ width: '560px', height: '560px' }} 
@@ -190,11 +207,9 @@ function App() {
           >
             <Globe3DDemo />
           </div>
-
           <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-slate-100/60 to-transparent dark:from-slate-900/40 pointer-events-none" />
         </div>
 
-        {/* --- Foreground Content --- */}
         <div className="relative z-10 max-w-4xl mx-auto w-full">
           <span className="inline-flex items-center gap-1.5 bg-blue-100/90 dark:bg-blue-900/50 text-blue-700 dark:text-sky-300 text-xs font-bold px-3.5 py-1.5 rounded-full uppercase tracking-wider mb-5 border border-blue-200 dark:border-blue-800/60 shadow-sm backdrop-blur-sm">
             <Sparkles size={14} /> Compare Live Prices in Seconds
@@ -232,7 +247,14 @@ function App() {
                 disabled={loading}
                 className="absolute right-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold px-6 py-2.5 rounded-xl shadow-md transition flex items-center gap-2 cursor-pointer"
               >
-                {loading ? 'Finding...' : 'Compare'}
+                {loading ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    <span>Finding...</span>
+                  </>
+                ) : (
+                  'Compare'
+                )}
               </button>
             </form>
 
@@ -278,14 +300,69 @@ function App() {
             )}
           </div>
 
+          {/* OPTION 1: LIVE RADAR SCANNING PILL */}
+          {loading && (
+            <div className="mt-6 flex flex-col items-center justify-center transition-all duration-300">
+              <div className="inline-flex items-center gap-3 px-5 py-2.5 rounded-full bg-blue-50/90 dark:bg-slate-800/90 border border-blue-200 dark:border-blue-700/60 shadow-lg shadow-blue-500/10 backdrop-blur-md">
+                <span className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-600"></span>
+                </span>
+                <span className="text-xs sm:text-sm font-semibold text-blue-700 dark:text-sky-300 tracking-wide">
+                  {loadingSteps[loadingStep]}
+                </span>
+              </div>
+            </div>
+          )}
+
           {error && (
             <p className="mt-4 text-rose-500 text-sm font-medium">{error}</p>
           )}
         </div>
       </section>
 
+      {/* OPTION 2: SHIMMER WAVE SKELETON GRID */}
+      {loading && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-16 animate-pulse">
+          {/* Best Deal Skeleton Banner */}
+          <div className="relative overflow-hidden bg-slate-100 dark:bg-slate-800/60 border-2 border-slate-200 dark:border-slate-700 rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6 mb-10 shadow-sm">
+            <div className="flex flex-col sm:flex-row items-center gap-6 w-full md:w-3/4">
+              <div className="w-28 h-28 rounded-2xl bg-slate-200 dark:bg-slate-700 shrink-0" />
+              <div className="space-y-3 w-full">
+                <div className="h-5 bg-emerald-200/60 dark:bg-emerald-900/40 rounded-full w-36" />
+                <div className="h-7 bg-slate-200 dark:bg-slate-700 rounded-xl w-3/4" />
+                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded-lg w-48" />
+              </div>
+            </div>
+            <div className="w-40 h-12 bg-slate-200 dark:bg-slate-700 rounded-xl shrink-0" />
+          </div>
+
+          {/* 3 Multi-Store Comparison Cards Skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3].map((card) => (
+              <div 
+                key={card} 
+                className="bg-slate-100/80 dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-200 dark:border-slate-700/80 space-y-4"
+              >
+                <div className="flex justify-between items-center">
+                  <div className="h-5 w-20 bg-slate-200 dark:bg-slate-700 rounded-md" />
+                  <div className="h-4 w-12 bg-slate-200 dark:bg-slate-700 rounded-md" />
+                </div>
+                <div className="h-36 bg-slate-200/70 dark:bg-slate-700/60 rounded-xl" />
+                <div className="h-5 bg-slate-200 dark:bg-slate-700 rounded-md w-full" />
+                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded-md w-2/3" />
+                <div className="pt-4 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                  <div className="h-6 w-24 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+                  <div className="h-5 w-20 bg-blue-200/60 dark:bg-blue-900/40 rounded-md" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 3. Search Results & In-Page Navigation */}
-      {results && (
+      {!loading && results && (
         <main id="search-results-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20 relative z-10">
           
           {/* Sticky Sub-Navbar */}
