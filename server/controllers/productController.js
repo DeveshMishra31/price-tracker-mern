@@ -1,5 +1,9 @@
 import axios from 'axios';
+import NodeCache from 'node-cache';
 import SearchHistory from '../models/SearchHistory.js';
+
+// Cache results for 2 hours (stdTTL: 7200 seconds)
+const searchCache = new NodeCache({ stdTTL: 7200, checkperiod: 600 });
 
 // Helper: Convert ₹65,999 or Rs. 65,999 to clean float number
 const parsePrice = (priceStr) => {
@@ -19,22 +23,17 @@ const cleanUrl = (url) => {
 
 // Verified Multi-Store & Fashion Brands
 const TRUSTED_STORES = [
-  // Major Marketplaces & Electronics
   { name: 'Amazon', match: ['amazon.in', 'amazon'] },
   { name: 'Flipkart', match: ['flipkart.com', 'flipkart'] },
   { name: 'Croma', match: ['croma.com', 'croma'] },
   { name: 'Reliance Digital', match: ['reliancedigital.in', 'reliance digital', 'reliancedigital'] },
   { name: 'Vijay Sales', match: ['vijaysales.com', 'vijay sales'] },
   { name: 'Tata CLiQ', match: ['tatacliq.com', 'tata cliq', 'tatacliq'] },
-
-  // Fashion & Beauty
   { name: 'Myntra', match: ['myntra.com', 'myntra'] },
   { name: 'Nykaa', match: ['nykaa.com', 'nykaa', 'nykaa fashion'] },
   { name: 'Ajio', match: ['ajio.com', 'ajio'] },
   { name: 'Snitch', match: ['snitch.co.in', 'snitch'] },
   { name: 'Meesho', match: ['meesho.com', 'meesho'] },
-
-  // Direct Brands
   { name: 'Nike', match: ['nike.com', 'nike'] },
   { name: 'Puma', match: ['puma.com', 'in.puma.com', 'puma'] },
   { name: 'Adidas', match: ['adidas.co.in', 'adidas.com', 'adidas'] },
@@ -91,7 +90,6 @@ const calculateMatchScore = (productTitle, userQuery) => {
 
   let score = 0;
   qTokens.forEach((token) => {
-    // Model numbers ya alphanumeric codes ko extra weightage (e.g. L43MB, APIN, 43X, Pro, QLED)
     const isAlphanumeric = /[0-9]/.test(token) && /[a-z]/i.test(token);
     if (pTokens.includes(token)) {
       score += isAlphanumeric ? 6 : 1.5;
@@ -111,34 +109,43 @@ export const searchProducts = async (req, res) => {
       return res.status(400).json({ message: 'Search query is required' });
     }
 
-    if (req.user) {
-      await SearchHistory.create({ userId: req.user.id, query });
+    const normalizedQuery = query.trim().toLowerCase();
+
+    // 1. Instant Cache Check (<50ms response)
+    const cachedResponse = searchCache.get(normalizedQuery);
+    if (cachedResponse) {
+      return res.status(200).json(cachedResponse);
     }
 
-    // Call Serper Google Shopping with higher volume
-    let response = await axios.post(
+    if (req.user) {
+      SearchHistory.create({ userId: req.user.id, query }).catch(() => {});
+    }
+
+    // 2. Fetch Serper with optimized batch (num: 25 for fast response)
+    const response = await axios.post(
       'https://google.serper.dev/shopping',
       {
         q: query,
         gl: 'in',
         hl: 'en',
-        num: 50
+        num: 25
       },
       {
         headers: {
           'X-API-KEY': process.env.SERPER_API_KEY,
           'Content-Type': 'application/json'
-        }
+        },
+        timeout: 8000 // 8s safety timeout
       }
     );
 
     let rawList = response.data.shopping || [];
 
-    // Fallback: Agar lamba exact title hone ki wajah se 0 results aaye, toh model code / brand se search karein
+    // Fallback if empty
     if (rawList.length === 0) {
       const modelMatch = query.match(/[a-zA-Z0-9]+-[a-zA-Z0-9]+/i) || query.match(/[a-zA-Z]{1,3}\d{2,5}[a-zA-Z0-9]*/i);
       const brandWord = query.trim().split(/\s+/)[0];
-      const trimmedQuery = modelMatch ? `${brandWord} ${modelMatch[0]}` : query.split(' ').slice(0, 5).join(' ');
+      const trimmedQuery = modelMatch ? `${brandWord} ${modelMatch[0]}` : query.split(' ').slice(0, 4).join(' ');
 
       const fallbackRes = await axios.post(
         'https://google.serper.dev/shopping',
@@ -146,13 +153,14 @@ export const searchProducts = async (req, res) => {
           q: trimmedQuery,
           gl: 'in',
           hl: 'en',
-          num: 40
+          num: 20
         },
         {
           headers: {
             'X-API-KEY': process.env.SERPER_API_KEY,
             'Content-Type': 'application/json'
-          }
+          },
+          timeout: 6000
         }
       );
       rawList = fallbackRes.data.shopping || [];
@@ -162,9 +170,8 @@ export const searchProducts = async (req, res) => {
       return res.status(404).json({ message: `No products found for "${query}".` });
     }
 
-    // 1. Filter strictly by verified stores
+    // Filter verified stores
     const verifiedProducts = [];
-
     rawList.forEach((item) => {
       const sourceLower = (item.source || '').toLowerCase();
       const linkLower = (item.link || '').toLowerCase();
@@ -179,7 +186,6 @@ export const searchProducts = async (req, res) => {
 
       if (identifiedStore) {
         const matchScore = calculateMatchScore(item.title, query);
-
         verifiedProducts.push({
           title: item.title,
           source: identifiedStore,
@@ -202,7 +208,7 @@ export const searchProducts = async (req, res) => {
       });
     }
 
-    // 2. Apply Category Intelligence Filter (Smart Fan vs TV & Accessory Exclusion)
+    // Category Intelligence Filter
     const qLower = query.toLowerCase();
     const activeRule = CATEGORY_RULES.find((rule) =>
       rule.triggers.some((t) => qLower.includes(t))
@@ -210,54 +216,43 @@ export const searchProducts = async (req, res) => {
 
     const filteredList = verifiedProducts.filter((item) => {
       const titleLower = item.title.toLowerCase();
-
       if (activeRule) {
-        // Price Floor Check
         if (item.numericPrice < activeRule.minPrice) return false;
-
-        // Mandatory Word Check
         if (activeRule.mustInclude.length > 0) {
           const hasMust = activeRule.mustInclude.some((w) => titleLower.includes(w));
           if (!hasMust) return false;
         }
-
-        // Banned Words Check
         const hasBanned = activeRule.bannedWords.some(
           (b) => titleLower.includes(b) && !qLower.includes(b)
         );
         if (hasBanned) return false;
       }
-
       return item.numericPrice > 0;
     });
 
     const pool = filteredList.length > 0 ? filteredList : verifiedProducts;
 
-    // 3. Exact Model / Spec Ranking Filter
+    // Relevance Ranking
     const maxScore = Math.max(...pool.map((p) => p.matchScore));
     let candidatePool = pool;
-
-    // Agar query specific/lambe naam wali thi aur high matches mile hain
     if (maxScore >= 4) {
-      // Sirf wahi products select honge jinka title query ke specs/model se strongly match karta ho
       candidatePool = pool.filter((p) => p.matchScore >= maxScore * 0.55);
     }
 
-    // 4. Outlier Filter (35% of median price floor)
+    // Outlier Filter
     const sortedPrices = candidatePool.map((i) => i.numericPrice).sort((a, b) => a - b);
     const medianPrice = sortedPrices[Math.floor(sortedPrices.length / 2)];
     const cleanFinal = candidatePool.filter((item) => item.numericPrice >= medianPrice * 0.35);
 
-    // 5. Final Sorting:
-    // Pehle Match Relevance (sabse exact model aage), fir Price Comparison (lowest price)
+    // Final Sorting
     cleanFinal.sort((a, b) => {
       if (Math.abs(b.matchScore - a.matchScore) > 1.5) {
-        return b.matchScore - a.matchScore; // High accuracy item first
+        return b.matchScore - a.matchScore;
       }
-      return a.numericPrice - b.numericPrice; // Close matches mein sasta wala first
+      return a.numericPrice - b.numericPrice;
     });
 
-    // Best Deal: Exact matches ke group mein jo sabse lowest price ho
+    // Best Deal selection
     const topTierMatches = cleanFinal.filter(
       (item) => item.matchScore >= cleanFinal[0].matchScore - 1.5
     );
@@ -268,12 +263,17 @@ export const searchProducts = async (req, res) => {
       }
     });
 
-    res.status(200).json({
+    const finalResult = {
       success: true,
       query,
       bestDeal,
       allStores: cleanFinal
-    });
+    };
+
+    // Store in cache for future instant queries
+    searchCache.set(normalizedQuery, finalResult);
+
+    res.status(200).json(finalResult);
 
   } catch (error) {
     console.error('Search API Error:', error.response?.data || error.message);

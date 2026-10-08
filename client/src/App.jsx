@@ -81,7 +81,7 @@ function App() {
     document.documentElement.classList.toggle('dark');
   };
 
-const handleSearch = async (e, directQuery = null) => {
+  const handleSearch = async (e, directQuery = null) => {
     if (e) e.preventDefault();
     const searchQuery = directQuery || query;
     if (!searchQuery.trim()) return;
@@ -96,7 +96,6 @@ const handleSearch = async (e, directQuery = null) => {
     setError('');
 
     try {
-      // Backend POST expect karta hai body payload { query: ... } ke sath
       const response = await axios.post(
         'https://pricehunter-api-ox2s.onrender.com/api/products/search',
         { query: searchQuery }
@@ -177,13 +176,13 @@ const handleSearch = async (e, directQuery = null) => {
         </div>
       </header>
 
-    {/* 2. Hero & Highlighted Smart Search Bar */}
+      {/* 2. Hero & Highlighted Smart Search Bar */}
       <section 
         style={{ minHeight: '580px' }}
-        className="relative overflow-hidden pt-12 pb-16 px-4 sm:px-6 flex flex-col items-center justify-center text-center"
+        className="relative pt-12 pb-16 px-4 sm:px-6 flex flex-col items-center justify-center text-center z-30"
       >
 
-        {/* --- 3D Globe Background Canvas --- */}
+        {/* --- 3D Globe Background Canvas (overflow-hidden sirf globe canvas wrapper par) --- */}
         <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none select-none overflow-hidden">
           <div 
             style={{ width: '560px', height: '560px' }} 
@@ -192,11 +191,10 @@ const handleSearch = async (e, directQuery = null) => {
             <Globe3DDemo />
           </div>
 
-          {/* White gradient ko bahut chhota (h-12) aur ultra-subtle (opacity-40) kar diya hai */}
-          <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-slate-40/60 to-transparent dark:from-slate-900/40 pointer-events-none" />
+          <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-slate-100/60 to-transparent dark:from-slate-900/40 pointer-events-none" />
         </div>
 
-        {/* --- Foreground Content (Open & Crisp) --- */}
+        {/* --- Foreground Content --- */}
         <div className="relative z-10 max-w-4xl mx-auto w-full">
           <span className="inline-flex items-center gap-1.5 bg-blue-100/90 dark:bg-blue-900/50 text-blue-700 dark:text-sky-300 text-xs font-bold px-3.5 py-1.5 rounded-full uppercase tracking-wider mb-5 border border-blue-200 dark:border-blue-800/60 shadow-sm backdrop-blur-sm">
             <Sparkles size={14} /> Compare Live Prices in Seconds
@@ -206,7 +204,7 @@ const handleSearch = async (e, directQuery = null) => {
             Find the <span className="text-emerald-500 dark:text-emerald-400">Lowest Price</span> Across Amazon, Flipkart & More
           </h1>
 
-          <p className="mt-4 text-slate-900  dark:text-slate-300 font-medium text-base sm:text-lg max-w-2xl mx-auto">
+          <p className="mt-4 text-slate-900 dark:text-slate-300 font-medium text-base sm:text-lg max-w-2xl mx-auto">
             Never overpay again. Enter any gadget, sneaker or product to view live verified deals side-by-side.
           </p>
 
@@ -246,7 +244,10 @@ const handleSearch = async (e, directQuery = null) => {
                   onClick={() => setShowDropdown(false)} 
                 />
 
-                <div className="absolute left-0 right-0 top-full mt-2 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl z-50 overflow-hidden divide-y divide-slate-100 dark:divide-slate-700/60">
+                <div 
+                  style={{ zIndex: 100 }}
+                  className="absolute left-0 right-0 top-full mt-2 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden divide-y divide-slate-100 dark:divide-slate-700/60"
+                >
                   <div className="px-4 py-2.5 text-xs font-bold text-slate-400 uppercase tracking-wider flex justify-between items-center bg-slate-50 dark:bg-slate-800/80">
                     <span>Recent Searches</span>
                   </div>
@@ -285,10 +286,10 @@ const handleSearch = async (e, directQuery = null) => {
 
       {/* 3. Search Results & In-Page Navigation */}
       {results && (
-        <main id="search-results-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
+        <main id="search-results-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20 relative z-10">
           
           {/* Sticky Sub-Navbar */}
-          <div className="sticky top-16 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md py-3 border-y border-slate-200 dark:border-slate-800 my-6">
+          <div className="sticky top-16 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md py-3 border-y border-slate-200 dark:border-slate-800 my-6">
             <nav className="flex items-center justify-center space-x-2 sm:space-x-6 text-sm font-medium">
               <a href="#best-deal" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 transition font-bold">
                 <TrendingDown size={16} /> Best Deal
