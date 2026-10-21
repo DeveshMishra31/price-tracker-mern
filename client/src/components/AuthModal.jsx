@@ -355,7 +355,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
           </>
         )}
 
-        {/* VIEW 2: FORGOT PASSWORD (EMAIL INPUT) */}
+     {/* VIEW 2: FORGOT PASSWORD (EMAIL INPUT) */}
         {view === 'forgot-email' && (
           <form onSubmit={handleForgotEmailSubmit} className="space-y-4">
             <div>
@@ -370,7 +370,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@example.com"
-                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-sm outline-none focus:border-blue-500"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-sm outline-none focus:border-blue-500 transition"
                 />
               </div>
             </div>
@@ -405,6 +405,21 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         {/* VIEW 3: RESET PASSWORD (OTP + NEW PASSWORD INPUT) */}
         {view === 'reset-password' && (
           <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
+            <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-xs text-blue-700 dark:text-sky-300 flex justify-between items-center">
+              <span className="truncate">Code sent to: <strong>{email}</strong></span>
+              <button
+                type="button"
+                onClick={() => {
+                  setView('forgot-email');
+                  setOtp('');
+                  setError('');
+                }}
+                className="text-[11px] underline font-bold hover:text-blue-900 dark:hover:text-white shrink-0 ml-2 cursor-pointer"
+              >
+                Change
+              </button>
+            </div>
+
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1.5">
                 6-Digit Reset Code
@@ -418,7 +433,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                   value={otp}
                   onChange={(e) => setOtp(e.target.value.trim())}
                   placeholder="123456"
-                  className="w-full pl-10 pr-4 py-3 text-center tracking-widest text-lg font-bold rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:border-blue-500"
+                  className="w-full pl-10 pr-4 py-3 text-center tracking-widest text-lg font-bold rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:border-blue-500 transition"
                 />
               </div>
             </div>
@@ -436,7 +451,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Min 6 characters"
-                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-sm outline-none focus:border-blue-500"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-sm outline-none focus:border-blue-500 transition"
                 />
               </div>
             </div>

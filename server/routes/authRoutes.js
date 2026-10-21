@@ -158,13 +158,14 @@ router.post('/login', async (req, res) => {
 });
 
 // --- 4. FORGOT PASSWORD (SEND RESET OTP) ---
-router.post('/forgot-password', async (req, res) => {
+router.post('/forgot-password-otp', async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) {
       return res.status(400).json({ message: 'Email is required' });
     }
 
+    // Yahan check hota hai ki user hona chahiye:
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(404).json({ message: 'No account found with this email' });
@@ -174,22 +175,30 @@ router.post('/forgot-password', async (req, res) => {
     await Otp.deleteMany({ email });
     await Otp.create({ email, otp });
 
-    await sendEmail(
-      email,
-      'PriceHunter - Reset Password OTP',
-      `
-        <div style="font-family: Arial, sans-serif; padding: 20px;">
-          <h2>Password Reset Request</h2>
-          <p>Your password reset code is: <strong>${otp}</strong></p>
-          <p>Valid for 5 minutes.</p>
-        </div>
-      `
-    );
+    console.log(`🔑 RESET OTP FOR ${email} IS: ${otp}`);
 
-    res.status(200).json({ message: 'Reset OTP sent successfully' });
+    // Brevo API Call
+    const brevoPayload = {
+      sender: {
+        name: 'i am a student',
+        email: 'deveshmishradeveshmishra8@gmail.com'
+      },
+      to: [{ email }],
+      subject: 'PriceHunter - Password Reset Code',
+      htmlContent: `<h2>Your Password Reset OTP is: <strong>${otp}</strong></h2>`
+    };
+
+    await axios.post('https://api.brevo.com/v3/smtp/email', brevoPayload, {
+      headers: {
+        'api-key': process.env.BREVO_API_KEY,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    res.json({ message: 'Reset OTP sent successfully' });
   } catch (error) {
-    console.error('Forgot password error:', error.response?.data || error.message);
-    res.status(500).json({ message: 'Failed to send reset code' });
+    console.error('Reset OTP Error:', error);
+    res.status(500).json({ message: 'Failed to send reset OTP' });
   }
 });
 
