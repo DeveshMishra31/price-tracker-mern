@@ -96,6 +96,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   };
 
   // 3. Forgot Password: Send OTP
+ // 3. Forgot Password: Send OTP
   const handleForgotEmailSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -103,9 +104,9 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     setSuccessMsg('');
 
     try {
-      // Backend send-otp endpoint for password recovery
+      // ✅ '/send-otp' ko badal kar '/forgot-password-otp' karein:
       await axios.post(
-        'https://pricehunter-api-ox2s.onrender.com/api/auth/send-otp',
+        'https://pricehunter-api-ox2s.onrender.com/api/auth/forgot-password-otp',
         { email }
       );
       setSuccessMsg(`Reset code sent to ${email}`);
